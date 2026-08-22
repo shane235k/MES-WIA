@@ -1,0 +1,19 @@
+@import "tailwindcss";
+
+@layer base {
+  * {
+    font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+  }
+
+  code, pre, .font-mono {
+    font-family: 'JetBrains Mono', monospace;
+  }
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  background-color: #f4f4f5;
+  color: #09090b;
+  overflow-x: hidden;
+}
