@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { 
   Plus, X, Eye, Play, Trash2, 
   ArrowRight, ArrowLeft, HardHat, Cpu, Box, Layers, DollarSign, Calculator, Sparkles
@@ -288,13 +288,14 @@ export default function WorkOrdersPage({ onOpenDesigner }: Props) {
     }
   };
 
+  const selectedWoRef = useRef<WorkOrder | null>(selectedWoForMaterials);
+  selectedWoRef.current = selectedWoForMaterials;
+
   useEffect(() => {
     fetchData();
 
     // WebSocket for real-time live execution and material updates
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsHost = API_URL.replace(/^https?:\/\//, '');
-    const wsUrl = `${protocol}//${wsHost}/ws`;
+    const wsUrl = `${API_URL.replace(/^http/, 'ws')}/api/ws/execution`;
     
     let ws: WebSocket | null = null;
     try {
@@ -308,14 +309,15 @@ export default function WorkOrdersPage({ onOpenDesigner }: Props) {
             msg.type === 'OPERATION_COMPLETED' ||
             msg.type === 'MATERIAL_RESERVED' ||
             msg.type === 'MATERIAL_CONSUMED' ||
-            msg.type === 'WORK_ORDER_MATERIAL_SHORTAGE'
+            msg.type === 'WORK_ORDER_MATERIAL_SHORTAGE' ||
+            msg.type === 'EXECUTION_STATE_UPDATE'
           ) {
             fetchData();
             // If the materials modal is currently open for this work order, refresh its summary
-            if (selectedWoForMaterials) {
-              const woId = selectedWoForMaterials.id || selectedWoForMaterials._id;
-              if (msg.data?.workOrderId === woId) {
-                fetchMaterialSummary(woId!);
+            if (selectedWoRef.current) {
+              const currentWoId = selectedWoRef.current.id || selectedWoRef.current._id;
+              if (msg.data?.workOrderId === currentWoId) {
+                fetchMaterialSummary(currentWoId!);
               }
             }
           }
@@ -328,9 +330,17 @@ export default function WorkOrdersPage({ onOpenDesigner }: Props) {
     }
 
     return () => {
-      if (ws) ws.close();
+      if (ws) {
+        if (ws.readyState === WebSocket.OPEN) {
+          ws.close();
+        } else if (ws.readyState === WebSocket.CONNECTING) {
+          ws.onopen = () => {
+            ws?.close();
+          };
+        }
+      }
     };
-  }, [selectedWoForMaterials]);
+  }, [API_URL]);
 
   const fetchMaterialSummary = async (woId: string) => {
     setLoadingMaterials(true);

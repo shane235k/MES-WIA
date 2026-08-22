@@ -288,8 +288,16 @@ export default function AIInvestigationModal({
       }
     };
 
-    return () => ws.close();
-  }, [isOpen, incidentId]);
+    return () => {
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.close();
+      } else if (ws.readyState === WebSocket.CONNECTING) {
+        ws.onopen = () => {
+          ws.close();
+        };
+      }
+    };
+  }, [isOpen, incidentId, API_URL]);
 
   if (!isOpen) return null;
 

@@ -111,6 +111,7 @@ async def root():
     }
 
 # Register routers
+app.include_router(ws.router)
 app.include_router(health.router, prefix="/api")
 app.include_router(ws.router, prefix="/api")
 app.include_router(users.router, prefix="/api/users", tags=["Users"])

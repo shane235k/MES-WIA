@@ -856,7 +856,12 @@ class ExecutionEngine:
         db = get_db()
         from app.services.material_reservation_service import MaterialReservationService
         
-        async for wo in db.work_orders.find({"status": WorkOrderStatus.WAITING_FOR_MATERIAL.value}):
+        async for wo in db.work_orders.find({
+            "$or": [
+                {"status": WorkOrderStatus.WAITING_FOR_MATERIAL.value},
+                {"operations.status": WorkOrderOperationStatus.WAITING_FOR_MATERIAL.value}
+            ]
+        }):
             wo_id = str(wo["_id"])
             wo_code = wo.get("workOrderCode", "WO")
             now = datetime.utcnow()
@@ -866,6 +871,13 @@ class ExecutionEngine:
             if res_result.get("success", False):
                 logger.info(f"Materials restocked! Auto-resuming Work Order {wo_code} from WAITING_FOR_MATERIAL to IN_PROGRESS.")
                 
+                # Update any operations that were WAITING_FOR_MATERIAL to READY
+                ops = wo.get("operations", [])
+                for op in ops:
+                    if op.get("status") == WorkOrderOperationStatus.WAITING_FOR_MATERIAL.value:
+                        op["status"] = WorkOrderOperationStatus.READY.value
+                        op["waitingReason"] = None
+
                 # Ensure execution record exists
                 execution = await db.executions.find_one({"workOrderId": wo_id})
                 if not execution:
@@ -879,7 +891,7 @@ class ExecutionEngine:
                         "completedAt": None,
                         "activeOperationsCount": 0,
                         "completedOperationsCount": 0,
-                        "totalOperationsCount": len(wo.get("operations", [])),
+                        "totalOperationsCount": len(ops),
                         "createdAt": now,
                         "updatedAt": now
                     }
@@ -892,10 +904,15 @@ class ExecutionEngine:
                         {"$set": {"status": ExecutionStatus.IN_PROGRESS.value, "updatedAt": now}}
                     )
 
-                # Set Work Order status to IN_PROGRESS
+                # Set Work Order status to IN_PROGRESS with updated operations
                 await db.work_orders.update_one(
                     {"_id": ObjectId(wo_id)},
-                    {"$set": {"status": WorkOrderStatus.IN_PROGRESS.value, "startedAt": now, "updatedAt": now}}
+                    {"$set": {
+                        "status": WorkOrderStatus.IN_PROGRESS.value,
+                        "operations": ops,
+                        "startedAt": wo.get("startedAt") or now,
+                        "updatedAt": now
+                    }}
                 )
 
                 # Log event

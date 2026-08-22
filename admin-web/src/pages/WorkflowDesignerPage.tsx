@@ -18,26 +18,53 @@ import {
 } from 'lucide-react';
 import { extractErrorMessage } from '../utils/apiError';
 
-// Custom Node component displaying Name on Top, Machine Color accents, Operator pills, and dynamic countdowns
+// Custom Node component displaying Name on Top, Machine Color accents, Operator pills, dynamic countdowns, and clear halt/blockage reasons
 function OperationNode({ data }: any) {
   const machineColor = data.machineColor || '#3B82F6';
   const status = data.status || 'PENDING';
   const remainingSeconds = data.remainingSeconds ?? data.estimatedDurationSeconds ?? 0;
+  
   const isRunning = status === 'IN_PROGRESS';
-  const isWaiting = status === 'WAITING_FOR_RESOURCE';
+  const isWaitingResource = status === 'WAITING_FOR_RESOURCE';
+  const isWaitingMaterial = status === 'WAITING_FOR_MATERIAL';
   const isCompleted = status === 'COMPLETED';
   const isReady = status === 'READY';
   const isInterrupted = status === 'INTERRUPTED';
   const isPaused = status === 'PAUSED';
-  const isDown = data.machineStatus === 'DOWN' || (data.waitingReason && data.waitingReason.includes('DOWN'));
+  const isFailed = status === 'FAILED';
+  const isPending = status === 'PENDING';
+
+  const isMachineDown = data.machineStatus === 'DOWN' || data.machineStatus === 'MAINTENANCE' || (data.waitingReason && (data.waitingReason.includes('DOWN') || data.waitingReason.includes('MAINTENANCE')));
+  const isOperatorIssue = data.waitingReason && (data.waitingReason.toLowerCase().includes('operator') || data.waitingReason.toLowerCase().includes('offline') || data.waitingReason.toLowerCase().includes('assigned'));
+
+  // Determine dynamic node border color
+  let borderColor = '#E4E4E7';
+  let borderLeftColor = machineColor;
+
+  if (isInterrupted || isFailed || isMachineDown) {
+    borderColor = '#EF4444';
+    borderLeftColor = '#EF4444';
+  } else if (isPaused || isWaitingMaterial || isWaitingResource) {
+    borderColor = '#F59E0B';
+    borderLeftColor = '#F59E0B';
+  } else if (isRunning) {
+    borderColor = machineColor;
+    borderLeftColor = machineColor;
+  } else if (isReady) {
+    borderColor = '#6366F1';
+    borderLeftColor = '#6366F1';
+  } else if (isCompleted) {
+    borderColor = '#10B981';
+    borderLeftColor = '#10B981';
+  }
 
   return (
     <div 
-      className="bg-white rounded-xl shadow-md border text-xs w-72 font-sans select-none overflow-hidden transition-all duration-200"
+      className="bg-white rounded-xl shadow-md border text-xs w-80 font-sans select-none overflow-hidden transition-all duration-200"
       style={{ 
-        borderColor: isPaused ? '#F59E0B' : isInterrupted || isDown ? '#EF4444' : isRunning ? machineColor : isCompleted ? '#10B981' : isWaiting ? '#F59E0B' : '#E4E4E7',
+        borderColor,
         borderLeftWidth: '6px',
-        borderLeftColor: isPaused ? '#F59E0B' : isInterrupted || isDown ? '#EF4444' : machineColor
+        borderLeftColor
       }}
     >
       <Handle type="target" position={Position.Top} className="w-2.5 h-2.5 bg-zinc-400 border-2 border-white" />
@@ -52,14 +79,14 @@ function OperationNode({ data }: any) {
 
         {/* Machine Badge */}
         <div className={`flex items-center gap-1.5 px-2 py-0.5 rounded-full border shadow-2xs flex-shrink-0 ${
-          isDown ? 'bg-rose-50 border-rose-200 text-rose-700' : 'bg-white border-zinc-200 text-zinc-800'
+          isMachineDown ? 'bg-rose-50 border-rose-200 text-rose-700 font-bold' : 'bg-white border-zinc-200 text-zinc-800'
         }`}>
           <span 
             className="w-2 h-2 rounded-full flex-shrink-0"
-            style={{ backgroundColor: isDown ? '#EF4444' : machineColor }}
+            style={{ backgroundColor: isMachineDown ? '#EF4444' : machineColor }}
           />
           <span className="font-mono font-semibold text-[10px]">
-            {isDown ? `${data.machineCode || 'M-??'} ● DOWN` : (data.machineCode || data.requiredMachineType || 'M-??')}
+            {isMachineDown ? `${data.machineCode || 'M-??'} ● DOWN` : (data.machineCode || data.requiredMachineType || 'M-??')}
           </span>
         </div>
       </div>
@@ -78,9 +105,9 @@ function OperationNode({ data }: any) {
         {/* Assigned Operator & Machine Rate */}
         <div className="flex items-center justify-between text-[11px] text-zinc-500 pt-1 border-t border-zinc-100">
           <span className="flex items-center gap-1">
-            <HardHat className="w-3 h-3 text-amber-600 flex-shrink-0" />
-            <span className="truncate max-w-[120px] font-medium text-zinc-700">
-              {data.operatorName || 'Unassigned'}
+            <HardHat className={`w-3 h-3 flex-shrink-0 ${isOperatorIssue ? 'text-rose-600' : 'text-amber-600'}`} />
+            <span className={`truncate max-w-[130px] font-medium ${isOperatorIssue ? 'text-rose-700 font-bold' : 'text-zinc-700'}`}>
+              {data.operatorName || (isOperatorIssue ? 'No Operator Assigned' : 'Unassigned')}
             </span>
           </span>
           <span className="font-mono text-zinc-600 font-bold text-[10px] bg-zinc-100 px-1.5 py-0.5 rounded">
@@ -134,27 +161,131 @@ function OperationNode({ data }: any) {
             })}
           </div>
         ) : (
-          <div className="bg-zinc-50/60 border border-dashed border-zinc-200 rounded-lg py-1.5 px-2 text-center text-[10px] text-zinc-500 font-mono">
+          <div className="bg-zinc-50/60 border border-dashed border-zinc-200 rounded-lg py-1 px-2 text-center text-[10px] text-zinc-500 font-mono">
             Material-free process (0 raw material input)
           </div>
         )}
 
-        {/* Live Execution Status Indicator */}
+        {/* Live Execution Status & Action Controls */}
         <div className="pt-2 border-t border-zinc-100 space-y-2">
-          {isPaused && (
-            <div className="bg-amber-50 border border-amber-300 rounded-lg p-2 text-amber-900 space-y-1.5">
+          
+          {/* 1. WAITING FOR MATERIAL */}
+          {isWaitingMaterial && (
+            <div className="bg-amber-50/95 border border-amber-300 rounded-lg p-2.5 space-y-2 text-amber-950">
               <div className="flex items-center justify-between">
-                <span className="flex items-center gap-1.5 font-bold text-[11px] text-amber-800">
-                  <Pause className="w-3.5 h-3.5 text-amber-600 flex-shrink-0" />
-                  OPERATION HALTED / PAUSED
+                <span className="flex items-center gap-1.5 font-bold text-[11px] text-amber-900">
+                  <Box className="w-3.5 h-3.5 text-amber-700 animate-pulse flex-shrink-0" />
+                  MATERIAL CLEARANCE PENDING
                 </span>
-                <span className="px-1.5 py-0.2 rounded text-[9px] font-mono font-bold bg-amber-200 text-amber-900">
+                <span className="px-1.5 py-0.5 rounded text-[9px] font-mono font-bold bg-amber-200 text-amber-900">
+                  WAITING MAT
+                </span>
+              </div>
+              <div className="bg-white/90 rounded p-1.5 border border-amber-200 text-[10px] text-amber-900 font-mono leading-tight">
+                <span className="font-semibold block text-[9px] text-amber-700 uppercase tracking-wide">Block Reason:</span>
+                {data.waitingReason || 'Awaiting lot inspection clearance or material stock allocation.'}
+              </div>
+              <div className="flex items-center gap-1.5 pt-1">
+                {data.onResumeNode && data.workOrderId && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      data.onResumeNode(data);
+                    }}
+                    className="flex-1 py-1.5 px-2 bg-amber-600 hover:bg-amber-700 active:scale-98 text-white rounded-md text-[11px] font-semibold flex items-center justify-center gap-1.5 shadow-xs transition-colors cursor-pointer"
+                    title="Check material availability and resume"
+                  >
+                    <Play className="w-3 h-3 fill-current" />
+                    <span>Re-check & Resume</span>
+                  </button>
+                )}
+                {data.onPauseNode && data.workOrderId && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      data.onPauseNode(data.operationId);
+                    }}
+                    className="py-1.5 px-2 bg-white hover:bg-zinc-100 text-zinc-700 rounded-md text-[11px] font-medium border border-zinc-200 transition-colors cursor-pointer"
+                    title="Pause node"
+                  >
+                    <Pause className="w-3 h-3 text-zinc-600" />
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* 2. WAITING FOR RESOURCE (Machine Down or Operator Missing/Offline) */}
+          {isWaitingResource && (
+            <div className={`border rounded-lg p-2.5 space-y-2 ${isMachineDown ? 'bg-rose-50/95 border-rose-300 text-rose-950' : 'bg-amber-50/95 border-amber-300 text-amber-950'}`}>
+              <div className="flex items-center justify-between">
+                <span className={`flex items-center gap-1.5 font-bold text-[11px] ${isMachineDown ? 'text-rose-800' : 'text-amber-900'}`}>
+                  {isMachineDown ? (
+                    <AlertTriangle className="w-3.5 h-3.5 text-rose-600 animate-bounce flex-shrink-0" />
+                  ) : isOperatorIssue ? (
+                    <HardHat className="w-3.5 h-3.5 text-amber-700 animate-pulse flex-shrink-0" />
+                  ) : (
+                    <Clock className="w-3.5 h-3.5 text-amber-700 animate-pulse flex-shrink-0" />
+                  )}
+                  {isMachineDown ? 'BLOCKED: MACHINE DOWN' : isOperatorIssue ? 'WAITING FOR OPERATOR' : 'WAITING FOR MACHINE'}
+                </span>
+                <span className={`px-1.5 py-0.5 rounded text-[9px] font-mono font-bold ${isMachineDown ? 'bg-rose-200 text-rose-900' : 'bg-amber-200 text-amber-900'}`}>
+                  {isMachineDown ? 'DOWN' : 'WAITING'}
+                </span>
+              </div>
+              <div className={`rounded p-1.5 border text-[10px] font-mono leading-tight ${isMachineDown ? 'bg-white/90 border-rose-200 text-rose-900' : 'bg-white/90 border-amber-200 text-amber-900'}`}>
+                <span className="font-semibold block text-[9px] uppercase tracking-wide opacity-75">Halt Reason:</span>
+                {data.waitingReason || (isMachineDown ? `Machine ${data.machineCode || ''} is currently DOWN or in maintenance.` : 'Waiting for resource availability...')}
+              </div>
+              <div className="flex items-center gap-1.5 pt-1">
+                {data.onResumeNode && data.workOrderId && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      data.onResumeNode(data);
+                    }}
+                    className={`flex-1 py-1.5 px-2 text-white rounded-md text-[11px] font-semibold flex items-center justify-center gap-1.5 shadow-xs transition-colors cursor-pointer ${isMachineDown ? 'bg-rose-600 hover:bg-rose-700' : 'bg-amber-600 hover:bg-amber-700'}`}
+                  >
+                    <Play className="w-3 h-3 fill-current" />
+                    <span>{isMachineDown ? 'Reroute to Backup Machine' : 'Reassign & Resume'}</span>
+                  </button>
+                )}
+                {data.onPauseNode && data.workOrderId && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      data.onPauseNode(data.operationId);
+                    }}
+                    className="py-1.5 px-2 bg-white hover:bg-zinc-100 text-zinc-700 rounded-md text-[11px] font-medium border border-zinc-200 transition-colors cursor-pointer"
+                    title="Pause node"
+                  >
+                    <Pause className="w-3 h-3 text-zinc-600" />
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* 3. PAUSED */}
+          {isPaused && (
+            <div className="bg-amber-50/95 border border-amber-300 rounded-lg p-2.5 space-y-2 text-amber-950">
+              <div className="flex items-center justify-between">
+                <span className="flex items-center gap-1.5 font-bold text-[11px] text-amber-900">
+                  <Pause className="w-3.5 h-3.5 text-amber-700 flex-shrink-0" />
+                  OPERATION PAUSED / HALTED
+                </span>
+                <span className="px-1.5 py-0.5 rounded text-[9px] font-mono font-bold bg-amber-200 text-amber-900">
                   PAUSED
                 </span>
               </div>
-              <p className="text-[10px] text-amber-800 line-clamp-2 leading-tight">
-                {data.waitingReason || 'Halted by administrator or AI recovery plan.'}
-              </p>
+              <div className="bg-white/90 rounded p-1.5 border border-amber-200 text-[10px] text-amber-900 font-mono leading-tight">
+                <span className="font-semibold block text-[9px] text-amber-700 uppercase tracking-wide">Pause Reason:</span>
+                {data.waitingReason || 'Halted by administrator or AI orchestration recovery plan.'}
+              </div>
               {data.onResumeNode && data.workOrderId && (
                 <button
                   type="button"
@@ -162,24 +293,31 @@ function OperationNode({ data }: any) {
                     e.stopPropagation();
                     data.onResumeNode(data);
                   }}
-                  className="w-full mt-1 py-1.5 px-2 bg-emerald-600 hover:bg-emerald-700 active:scale-98 text-white rounded-md text-[11px] font-semibold flex items-center justify-center gap-1.5 shadow-xs transition-colors cursor-pointer"
+                  className="w-full py-1.5 px-2 bg-emerald-600 hover:bg-emerald-700 active:scale-98 text-white rounded-md text-[11px] font-semibold flex items-center justify-center gap-1.5 shadow-xs transition-colors cursor-pointer"
                 >
                   <Play className="w-3 h-3 fill-current" />
-                  <span>Resume Node</span>
+                  <span>Resume Operation Node</span>
                 </button>
               )}
             </div>
           )}
 
-          {isInterrupted && (
-            <div className="bg-rose-50 border border-rose-200 rounded-lg p-2 text-rose-900 space-y-1">
-              <div className="flex items-center gap-1.5 font-bold text-[11px] text-rose-700">
-                <AlertTriangle className="w-3.5 h-3.5 text-rose-600 flex-shrink-0" />
-                OPERATION INTERRUPTED
+          {/* 4. INTERRUPTED OR FAILED */}
+          {(isInterrupted || isFailed) && (
+            <div className="bg-rose-50/95 border border-rose-300 rounded-lg p-2.5 space-y-2 text-rose-950">
+              <div className="flex items-center justify-between">
+                <span className="flex items-center gap-1.5 font-bold text-[11px] text-rose-800">
+                  <AlertTriangle className="w-3.5 h-3.5 text-rose-600 flex-shrink-0" />
+                  {isFailed ? 'OPERATION FAILED' : 'OPERATION INTERRUPTED'}
+                </span>
+                <span className="px-1.5 py-0.5 rounded text-[9px] font-mono font-bold bg-rose-200 text-rose-900">
+                  {isFailed ? 'FAILED' : 'INTERRUPTED'}
+                </span>
               </div>
-              <p className="text-[10px] text-rose-800 line-clamp-2 leading-tight">
-                {data.waitingReason || 'Interrupted due to machine breakdown.'}
-              </p>
+              <div className="bg-white/90 rounded p-1.5 border border-rose-200 text-[10px] text-rose-900 font-mono leading-tight">
+                <span className="font-semibold block text-[9px] text-rose-700 uppercase tracking-wide">Breakdown Details:</span>
+                {data.waitingReason || 'Machine failure or breakdown during execution.'}
+              </div>
               {data.onResumeNode && data.workOrderId && (
                 <button
                   type="button"
@@ -187,123 +325,118 @@ function OperationNode({ data }: any) {
                     e.stopPropagation();
                     data.onResumeNode(data);
                   }}
-                  className="w-full mt-1 py-1 px-2 bg-rose-600 hover:bg-rose-700 text-white rounded-md text-[10px] font-semibold flex items-center justify-center gap-1 shadow-xs transition-colors cursor-pointer"
+                  className="w-full py-1.5 px-2 bg-rose-600 hover:bg-rose-700 active:scale-98 text-white rounded-md text-[11px] font-semibold flex items-center justify-center gap-1.5 shadow-xs transition-colors cursor-pointer"
                 >
-                  <Play className="w-2.5 h-2.5 fill-current" />
-                  <span>Resume / Reroute</span>
+                  <Play className="w-3 h-3 fill-current" />
+                  <span>Resume & Reroute to Backup</span>
                 </button>
               )}
             </div>
           )}
 
+          {/* 5. IN PROGRESS (RUNNING) */}
           {isRunning && (
-            <div className="bg-blue-50/90 border border-blue-200 rounded-lg p-2 space-y-1.5 animate-pulse">
+            <div className="bg-blue-50/95 border border-blue-200 rounded-lg p-2.5 space-y-2 text-blue-950 animate-pulse">
               <div className="flex items-center justify-between">
                 <span className="flex items-center gap-1.5 text-blue-700 font-bold text-[11px]">
                   <Cog className="w-3.5 h-3.5 animate-spin text-blue-600" />
-                  RUNNING
+                  IN PROGRESS
                 </span>
-                <span className="font-mono font-bold text-blue-900 text-xs">
+                <span className="font-mono font-bold text-blue-900 text-xs bg-blue-100 px-1.5 py-0.5 rounded">
                   {remainingSeconds}s left
                 </span>
               </div>
               <div className="w-full bg-blue-200/60 h-1.5 rounded-full overflow-hidden">
                 <div 
                   className="bg-blue-600 h-full transition-all duration-1000"
-                  style={{ width: `${Math.max(5, Math.min(100, 100 - (remainingSeconds / (data.durationSeconds || 10)) * 100))}%` }}
+                  style={{ width: `${Math.max(5, Math.min(100, 100 - (remainingSeconds / (data.durationSeconds || data.estimatedDurationSeconds || 10)) * 100))}%` }}
                 />
               </div>
-            </div>
-          )}
-
-          {isWaiting && (
-            <div className={`border rounded-lg p-2 space-y-1 ${
-              isDown ? 'bg-rose-50 border-rose-200 text-rose-900' : 'bg-amber-50 border-amber-200 text-amber-900'
-            }`}>
-              <div className={`flex items-center gap-1.5 font-bold text-[11px] ${
-                isDown ? 'text-rose-700' : 'text-amber-800'
-              }`}>
-                {isDown ? (
-                  <AlertTriangle className="w-3.5 h-3.5 text-rose-600 flex-shrink-0" />
-                ) : (
-                  <Clock className="w-3.5 h-3.5 text-amber-600 animate-pulse flex-shrink-0" />
-                )}
-                {isDown ? 'BLOCKED BY DOWN MACHINE' : 'WAITING FOR RESOURCE'}
-              </div>
-              <p className={`text-[10px] line-clamp-2 leading-tight ${
-                isDown ? 'text-rose-800 font-mono' : 'text-amber-700'
-              }`}>
-                {data.waitingReason || 'Waiting for machine or operator availability...'}
-              </p>
-              {data.onResumeNode && data.workOrderId && (
+              {data.onPauseNode && data.workOrderId && (
                 <button
                   type="button"
                   onClick={(e) => {
                     e.stopPropagation();
-                    data.onResumeNode(data);
+                    data.onPauseNode(data.operationId);
                   }}
-                  className="w-full mt-1 py-1 px-2 bg-amber-700 hover:bg-amber-800 text-white rounded-md text-[10px] font-semibold flex items-center justify-center gap-1 shadow-xs transition-colors cursor-pointer"
+                  className="w-full py-1 px-2 bg-white hover:bg-amber-50 text-amber-800 hover:text-amber-900 border border-amber-300 rounded-md text-[10px] font-semibold flex items-center justify-center gap-1 shadow-2xs transition-colors cursor-pointer"
                 >
-                  <Play className="w-2.5 h-2.5 fill-current" />
-                  <span>Resume / Reroute Node</span>
+                  <Pause className="w-2.5 h-2.5 text-amber-600" />
+                  <span>Pause Node</span>
                 </button>
               )}
             </div>
           )}
 
-          {isCompleted && (
-            <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-1.5 flex items-center gap-1.5 text-emerald-700 font-semibold text-[11px]">
-              <CheckCircle className="w-3.5 h-3.5 text-emerald-600" />
-              COMPLETED
-            </div>
-          )}
-
+          {/* 6. READY */}
           {isReady && (
-            <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-2 space-y-1.5 text-indigo-900">
+            <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-2.5 space-y-2 text-indigo-950">
               <div className="flex items-center justify-between text-[11px] font-bold text-indigo-700">
-                <span>READY TO START</span>
-                <span className="text-[10px] text-indigo-400 font-normal font-mono">Next up</span>
+                <span className="flex items-center gap-1.5">
+                  <Play className="w-3.5 h-3.5 fill-current text-indigo-600" />
+                  READY TO START
+                </span>
+                <span className="text-[10px] text-indigo-500 font-mono font-bold bg-indigo-100 px-1.5 py-0.5 rounded">
+                  Ready
+                </span>
               </div>
-              {data.onResumeNode && data.workOrderId && (
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    data.onResumeNode(data);
-                  }}
-                  className="w-full py-1.5 px-2 bg-indigo-600 hover:bg-indigo-700 active:scale-98 text-white rounded-md text-[11px] font-semibold flex items-center justify-center gap-1.5 shadow-xs transition-colors cursor-pointer"
-                >
-                  <Play className="w-3 h-3 fill-current" />
-                  <span>Start / Resume Node</span>
-                </button>
-              )}
+              <div className="flex items-center gap-1.5">
+                {data.onResumeNode && data.workOrderId && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      data.onResumeNode(data);
+                    }}
+                    className="flex-1 py-1.5 px-2 bg-indigo-600 hover:bg-indigo-700 active:scale-98 text-white rounded-md text-[11px] font-semibold flex items-center justify-center gap-1.5 shadow-xs transition-colors cursor-pointer"
+                  >
+                    <Play className="w-3 h-3 fill-current" />
+                    <span>Start Operation</span>
+                  </button>
+                )}
+                {data.onPauseNode && data.workOrderId && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      data.onPauseNode(data.operationId);
+                    }}
+                    className="py-1.5 px-2 bg-white hover:bg-zinc-100 text-zinc-700 rounded-md text-[11px] font-medium border border-zinc-200 transition-colors cursor-pointer"
+                    title="Pause node"
+                  >
+                    <Pause className="w-3 h-3 text-zinc-600" />
+                  </button>
+                )}
+              </div>
             </div>
           )}
 
-          {status === 'PENDING' && (
-            <div className="bg-zinc-100 border border-zinc-200 rounded-lg p-1.5 text-zinc-500 text-[10px] flex items-center justify-between">
-              <span>PENDING PREDECESSOR</span>
-              <span className="font-mono">({data.dependencies?.join(', ') || 'none'})</span>
+          {/* 7. COMPLETED */}
+          {isCompleted && (
+            <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-2 flex items-center justify-between text-emerald-800 font-semibold text-[11px]">
+              <span className="flex items-center gap-1.5">
+                <CheckCircle className="w-3.5 h-3.5 text-emerald-600" />
+                COMPLETED
+              </span>
+              <span className="text-[10px] font-mono text-emerald-600">
+                {data.outputQuantity ?? data.inputQuantity ?? 10} units done
+              </span>
             </div>
           )}
 
-          {/* Admin Pause Button for Running / Ready / Waiting nodes */}
-          {(isRunning || isWaiting) && data.onPauseNode && data.workOrderId && (
-            <div className="flex justify-end pt-1">
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  data.onPauseNode(data.operationId);
-                }}
-                className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium bg-zinc-100 hover:bg-amber-50 text-zinc-600 hover:text-amber-700 border border-zinc-200 transition-colors cursor-pointer"
-                title="Pause this operation node"
-              >
-                <Pause className="w-2.5 h-2.5 text-amber-600" />
-                <span>Pause Node</span>
-              </button>
+          {/* 8. PENDING */}
+          {isPending && (
+            <div className="bg-zinc-100 border border-zinc-200 rounded-lg p-2 text-zinc-600 text-[10px] flex items-center justify-between">
+              <span className="flex items-center gap-1.5 font-medium">
+                <Clock className="w-3.5 h-3.5 text-zinc-400" />
+                PENDING PREDECESSOR
+              </span>
+              <span className="font-mono text-zinc-500 bg-white px-1.5 py-0.5 rounded border border-zinc-200">
+                {data.dependencies?.length > 0 ? data.dependencies.join(', ') : 'Initial Step'}
+              </span>
             </div>
           )}
+
         </div>
       </div>
 
@@ -374,6 +507,58 @@ export default function WorkflowDesignerPage({ workflowId, initialWorkOrderId, o
   const [selectedOperatorId, setSelectedOperatorId] = useState<string>('AUTO');
   const [resuming, setResuming] = useState<boolean>(false);
 
+  // Open resume modal handler
+  const handleOpenResumeModal = useCallback(async (op: any) => {
+    setResumeModalOp(op);
+    setSelectedMachineId(op.assignedMachineId || 'AUTO');
+    setSelectedOperatorId(op.assignedOperatorId || 'AUTO');
+
+    try {
+      const [mRes, uRes] = await Promise.all([
+        fetch(`${API_URL}/api/machines`),
+        fetch(`${API_URL}/api/users`)
+      ]);
+      if (mRes.ok) {
+        const mData = await mRes.json();
+        setAllMachines(mData);
+      }
+      if (uRes.ok) {
+        const uData = await uRes.json();
+        setAllOperators(uData.filter((u: any) => u.role === 'OPERATOR'));
+      }
+    } catch (err) {
+      console.error('Error fetching resources for resume:', err);
+    }
+  }, [API_URL]);
+
+  // Pause node handler
+  const handlePauseNode = useCallback(async (opId: string) => {
+    if (!selectedWorkOrderId) return;
+    try {
+      const res = await fetch(`${API_URL}/api/work-orders/${selectedWorkOrderId}/operations/${opId}/pause`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason: 'Admin paused operation node' })
+      });
+      if (!res.ok) {
+        const errData = await res.json();
+        throw new Error(errData.detail || 'Failed to pause operation');
+      }
+      // Trigger execution state refresh
+      const stateRes = await fetch(`${API_URL}/api/work-orders/${selectedWorkOrderId}/execution-state`);
+      if (stateRes.ok) {
+        const data = await stateRes.json();
+        const stateMap: Record<string, any> = {};
+        (data.operations || []).forEach((op: any) => {
+          stateMap[op.operationId] = op;
+        });
+        updateNodeDataInPlace(stateMap);
+      }
+    } catch (err: any) {
+      setError(err.message);
+    }
+  }, [API_URL, selectedWorkOrderId]);
+
   // Update existing node data in-place without unmounting/re-positioning nodes
   const updateNodeDataInPlace = useCallback((opsStateMap: Record<string, any>) => {
     setNodes((prevNodes) =>
@@ -384,7 +569,9 @@ export default function WorkflowDesignerPage({ workflowId, initialWorkOrderId, o
             ...node,
             data: {
               ...node.data,
-              workOrderId: selectedWorkOrderId
+              workOrderId: selectedWorkOrderId,
+              onPauseNode: handlePauseNode,
+              onResumeNode: handleOpenResumeModal
             }
           };
         }
@@ -393,7 +580,9 @@ export default function WorkflowDesignerPage({ workflowId, initialWorkOrderId, o
           data: {
             ...node.data,
             ...liveState,
-            workOrderId: selectedWorkOrderId
+            workOrderId: selectedWorkOrderId,
+            onPauseNode: handlePauseNode,
+            onResumeNode: handleOpenResumeModal
           }
         };
       })
@@ -411,7 +600,7 @@ export default function WorkflowDesignerPage({ workflowId, initialWorkOrderId, o
         };
       })
     );
-  }, [setNodes, setEdges, selectedWorkOrderId]);
+  }, [setNodes, setEdges, selectedWorkOrderId, handlePauseNode, handleOpenResumeModal]);
 
   // Sync execution state for the selected work order
   const syncExecutionState = useCallback(async (woId: string) => {
@@ -440,49 +629,6 @@ export default function WorkflowDesignerPage({ workflowId, initialWorkOrderId, o
       console.error('Error syncing execution state:', err);
     }
   }, [API_URL, updateNodeDataInPlace]);
-
-  // Pause node handler
-  const handlePauseNode = useCallback(async (opId: string) => {
-    if (!selectedWorkOrderId) return;
-    try {
-      const res = await fetch(`${API_URL}/api/work-orders/${selectedWorkOrderId}/operations/${opId}/pause`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ reason: 'Admin paused operation node' })
-      });
-      if (!res.ok) {
-        const errData = await res.json();
-        throw new Error(errData.detail || 'Failed to pause operation');
-      }
-      await syncExecutionState(selectedWorkOrderId);
-    } catch (err: any) {
-      setError(err.message);
-    }
-  }, [API_URL, selectedWorkOrderId, syncExecutionState]);
-
-  // Open resume modal handler
-  const handleOpenResumeModal = useCallback(async (op: any) => {
-    setResumeModalOp(op);
-    setSelectedMachineId(op.assignedMachineId || 'AUTO');
-    setSelectedOperatorId(op.assignedOperatorId || 'AUTO');
-
-    try {
-      const [mRes, uRes] = await Promise.all([
-        fetch(`${API_URL}/api/machines`),
-        fetch(`${API_URL}/api/users`)
-      ]);
-      if (mRes.ok) {
-        const mData = await mRes.json();
-        setAllMachines(mData);
-      }
-      if (uRes.ok) {
-        const uData = await uRes.json();
-        setAllOperators(uData.filter((u: any) => u.role === 'OPERATOR'));
-      }
-    } catch (err) {
-      console.error('Error fetching resources for resume:', err);
-    }
-  }, [API_URL]);
 
   // Confirm resume handler
   const handleConfirmResume = async () => {
@@ -695,7 +841,13 @@ export default function WorkflowDesignerPage({ workflowId, initialWorkOrderId, o
     };
 
     return () => {
-      ws.close();
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.close();
+      } else if (ws.readyState === WebSocket.CONNECTING) {
+        ws.onopen = () => {
+          ws.close();
+        };
+      }
     };
   }, [API_URL, selectedWorkOrderId, syncExecutionState, updateNodeDataInPlace]);
 

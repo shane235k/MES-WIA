@@ -181,7 +181,15 @@ export default function MachinesPage() {
       }
     };
 
-    return () => ws.close();
+    return () => {
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.close();
+      } else if (ws.readyState === WebSocket.CONNECTING) {
+        ws.onopen = () => {
+          ws.close();
+        };
+      }
+    };
   }, [API_URL]);
 
   const handleOpenCreate = () => {

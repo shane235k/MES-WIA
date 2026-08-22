@@ -60,7 +60,7 @@ class WorkOrderOperation(BaseModel):
     estimatedCompletionAt: Optional[datetime] = None
     actualStart: Optional[datetime] = None
     actualEnd: Optional[datetime] = None
-    durationSeconds: Optional[int] = None
+    durationSeconds: Optional[float] = None
     inputQuantity: float = Field(default=0.0, ge=0.0, description="Input production quantity received from predecessors")
     processedQuantity: float = Field(default=0.0, ge=0.0, description="Production units processed by this operation")
     outputQuantity: float = Field(default=0.0, ge=0.0, description="Good production units passed downstream")
@@ -77,13 +77,14 @@ class WorkOrderBase(BaseModel):
     supervisorId: Optional[str] = Field(default=None, description="ObjectId of the assigned Supervisor")
     quantity: float = Field(..., gt=0.0, description="Target quantity to produce, must be positive")
     priority: WorkOrderPriority = Field(default=WorkOrderPriority.NORMAL)
-    dueDate: datetime
+    dueDate: Optional[datetime] = Field(default=None)
     status: WorkOrderStatus = Field(default=WorkOrderStatus.PLANNED)
     startedAt: Optional[datetime] = None
     completedAt: Optional[datetime] = None
     createdBy: str = Field(default="SYSTEM")
 
 class WorkOrderCreate(WorkOrderBase):
+    dueDate: datetime = Field(..., description="Target completion timestamp")
     operations: Optional[List[dict]] = None
 
 class WorkOrderUpdate(BaseModel):
@@ -98,5 +99,6 @@ class WorkOrderUpdate(BaseModel):
 class WorkOrderInDB(WorkOrderBase, BaseSchemaModel):
     id: Optional[PyObjectId] = Field(None, alias="_id")
     operations: List[WorkOrderOperation] = Field(default_factory=list)
-    createdAt: datetime
-    updatedAt: datetime
+    createdAt: Optional[datetime] = Field(default_factory=datetime.utcnow)
+    updatedAt: Optional[datetime] = Field(default_factory=datetime.utcnow)
+
