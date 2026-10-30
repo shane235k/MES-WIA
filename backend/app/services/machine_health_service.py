@@ -8,9 +8,10 @@ from app.schemas.machine_health import (
     RiskLevel, DataQuality, TrendDirection,
     MachineHealthMetrics, HealthScoreBreakdownItem, HealthTrends,
     ProblematicMaterialCorrelation, MachineHealthAssessment,
-    MachineHealthSummary
+    MachineHealthSummary, MLHealthPrediction
 )
 from app.schemas.machine import MachineStatus
+from app.services.ml_health_service import MachineHealthMLService
 
 logger = logging.getLogger(__name__)
 
@@ -240,9 +241,26 @@ class MachineHealthService:
             data_quality = DataQuality.STRONG_HISTORY
             confidence_ceiling = 1.00
 
-        # 8. Deterministic Health Score Calculation (100-point transparent penalty model)
+        # 8. Deterministic & Machine Learning Health Scoring
         breakdown: List[HealthScoreBreakdownItem] = []
         total_penalty = 0.0
+
+        # Execute Random Forest Machine Learning Inference (Classification + Regression)
+        ml_prediction: Optional[MLHealthPrediction] = None
+        try:
+            ml_prediction = MachineHealthMLService.predict(
+                cycle_deviation_pct=cycle_deviation_pct,
+                rate_efficiency_pct=rate_efficiency_pct,
+                failures_24h=failures_24h,
+                failures_7d=failures_7d,
+                downtime_pct=downtime_pct,
+                unresolved_warnings=unresolved_warnings,
+                total_operating_seconds=total_operating_sec,
+                days_since_maint=days_since_maint,
+                incident_count=recent_incident_count
+            )
+        except Exception as e:
+            logger.warning(f"ML Health prediction failed: {e}")
 
         if data_quality == DataQuality.INSUFFICIENT_DATA and not last_maint_date:
             breakdown.append(HealthScoreBreakdownItem(
@@ -330,7 +348,16 @@ class MachineHealthService:
 
             health_score = max(0, min(100, int(round(100.0 - total_penalty))))
 
-        # 9. Determine Risk Level from Authoritative Deterministic Metrics
+            # Append Machine Learning Diagnostic Explanation Item
+            if ml_prediction:
+                breakdown.append(HealthScoreBreakdownItem(
+                    signal="ML_RANDOM_FOREST_DIAGNOSTIC",
+                    value=f"Model: {ml_prediction.predictedHealthScore}/100 (Risk: {ml_prediction.predictedRiskLevel.value}, Fail Prob: {int(ml_prediction.failureProbability * 100)}%)",
+                    penalty=0.0,
+                    explanation=f"Random Forest evaluated 9 operational signals. Primary risk driver: {ml_prediction.primaryRiskDriver}."
+                ))
+
+        # 9. Determine Risk Level from Authoritative Telemetry & ML Prediction
         if current_status == MachineStatus.DOWN.value or failures_24h >= 2 or cycle_deviation_pct >= 50.0 or health_score < 50:
             risk_level = RiskLevel.CRITICAL
             maint_attention = True
@@ -343,6 +370,11 @@ class MachineHealthService:
         else:
             risk_level = RiskLevel.LOW
             maint_attention = False
+
+        # If ML model detects elevated failure risk, adjust risk level safely
+        if ml_prediction and ml_prediction.failureProbability >= 0.85 and risk_level == RiskLevel.LOW:
+            risk_level = RiskLevel.MEDIUM
+            maint_attention = True
 
         # 10. Trends
         t_cycle = TrendDirection.DEGRADING if cycle_deviation_pct > 10.0 else (TrendDirection.IMPROVING if cycle_deviation_pct < -5.0 else TrendDirection.STABLE)
@@ -404,6 +436,7 @@ class MachineHealthService:
                 downtime=t_down
             ),
             aiAssessment=None,
+            mlPrediction=ml_prediction,
             generatedAt=now
         )
 
@@ -558,7 +591,9 @@ class MachineHealthService:
                     processingRateEfficiencyPercent=assessment.metrics.processingRateEfficiencyPercent,
                     lastAssessmentAt=last_at,
                     activeIncidentId=mach.get("currentIncidentId"),
-                    maintenanceEstimatedEnd=mach.get("maintenanceEstimatedEnd")
+                    maintenanceEstimatedEnd=mach.get("maintenanceEstimatedEnd"),
+                    mlRiskLevel=assessment.mlPrediction.predictedRiskLevel if assessment.mlPrediction else None,
+                    mlFailureProbability=assessment.mlPrediction.failureProbability if assessment.mlPrediction else None
                 ))
             except Exception as e:
                 logger.error(f"Error computing health summary for machine {m_id}: {e}")

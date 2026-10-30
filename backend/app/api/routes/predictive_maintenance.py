@@ -4,9 +4,10 @@ from pydantic import BaseModel, Field
 
 from app.core.database import get_db
 from app.schemas.machine_health import (
-    MachineHealthSummary, MachineHealthAssessment
+    MachineHealthSummary, MachineHealthAssessment, MLHealthPrediction
 )
 from app.services.machine_health_service import MachineHealthService
+from app.services.ml_health_service import MachineHealthMLService
 from app.ai.predictive_maintenance_planner import AIPredictiveMaintenancePlanner
 from app.ai.tool_executor import ToolExecutor
 from app.services.audit_service import AuditService
@@ -212,5 +213,73 @@ async def approve_and_execute_maintenance_action(
 
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+
+class MLSimulationRequest(BaseModel):
+    cycleDeviationPercent: float = Field(default=0.0, description="Elongation vs rated cycle time (%)")
+    rateEfficiencyPercent: float = Field(default=100.0, description="Actual vs configured rate efficiency (%)")
+    failures24h: int = Field(default=0, ge=0)
+    failures7d: int = Field(default=0, ge=0)
+    downtimePercent: float = Field(default=0.0, ge=0.0, le=100.0)
+    unresolvedWarnings: int = Field(default=0, ge=0)
+    totalOperatingHours: float = Field(default=100.0, ge=0.0)
+    daysSinceLastMaintenance: Optional[float] = Field(default=30.0)
+    historicalIncidentCount: int = Field(default=0, ge=0)
+
+@router.get("/ml/info")
+async def get_ml_model_info():
+    """
+    Retrieve diagnostics, hyper-parameters, training metadata,
+    and feature importances for the Random Forest machine learning model.
+    """
+    try:
+        return MachineHealthMLService.get_model_metadata()
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+
+@router.post("/ml/retrain")
+async def retrain_ml_model(actorId: Optional[str] = Query("ADMIN")):
+    """
+    Retrains the Random Forest Classifier and Regressor models and saves new weights.
+    """
+    try:
+        result = MachineHealthMLService.train_models()
+        await AuditService.log_event(
+            actor_id=actorId or "ADMIN",
+            actor_type="USER",
+            action="ML_MODEL_RETRAINED",
+            entity_type="system",
+            entity_id="ml_health_rf",
+            source="ADMIN",
+            metadata=result
+        )
+        return {
+            "success": True,
+            "message": "Random Forest ML models successfully retrained and persisted.",
+            "diagnostics": result
+        }
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+
+@router.post("/ml/simulate", response_model=MLHealthPrediction)
+async def simulate_ml_prediction(req: MLSimulationRequest):
+    """
+    Interactive ML Simulator: Run instant what-if inference across hypothetical
+    machine sensor telemetry to inspect predicted health score, risk class, and drivers.
+    """
+    try:
+        prediction = MachineHealthMLService.predict(
+            cycle_deviation_pct=req.cycleDeviationPercent,
+            rate_efficiency_pct=req.rateEfficiencyPercent,
+            failures_24h=req.failures24h,
+            failures_7d=req.failures7d,
+            downtime_pct=req.downtimePercent,
+            unresolved_warnings=req.unresolvedWarnings,
+            total_operating_seconds=req.totalOperatingHours * 3600.0,
+            days_since_maint=req.daysSinceLastMaintenance,
+            incident_count=req.historicalIncidentCount
+        )
+        return prediction
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))

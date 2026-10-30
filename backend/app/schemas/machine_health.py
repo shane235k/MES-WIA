@@ -110,6 +110,17 @@ class HealthTrends(BaseModel):
     failureFrequency: TrendDirection = TrendDirection.STABLE
     downtime: TrendDirection = TrendDirection.STABLE
 
+class MLHealthPrediction(BaseModel):
+    modelType: str = Field(default="RandomForestClassifier + Regressor", description="Underlying ML model algorithm")
+    predictedRiskLevel: RiskLevel = Field(..., description="ML classification of failure risk")
+    predictedHealthScore: int = Field(..., ge=0, le=100, description="ML regression prediction of health score")
+    failureProbability: float = Field(..., ge=0.0, le=1.0, description="Estimated probability of failure within 48h")
+    featureImportances: Dict[str, float] = Field(default_factory=dict, description="Relative feature importance weights (0.0 - 1.0)")
+    primaryRiskDriver: str = Field(default="Nominal", description="Primary telemetry metric driving the risk score")
+    modelConfidence: float = Field(default=0.90, ge=0.0, le=1.0)
+    trainedSamplesCount: int = Field(default=500)
+    evaluatedAt: datetime = Field(default_factory=datetime.utcnow)
+
 class MachineHealthAssessment(BaseModel):
     machineId: str
     machineCode: str
@@ -134,6 +145,9 @@ class MachineHealthAssessment(BaseModel):
     
     # AI Qualitative Assessment
     aiAssessment: Optional[AIPredictiveMaintenanceAssessment] = None
+
+    # Machine Learning Quantitative Prediction
+    mlPrediction: Optional[MLHealthPrediction] = None
     generatedAt: datetime = Field(default_factory=datetime.utcnow)
 
 class MachineHealthRecordInDB(MachineHealthAssessment, BaseSchemaModel):
@@ -154,3 +168,5 @@ class MachineHealthSummary(BaseModel):
     lastAssessmentAt: Optional[datetime] = None
     activeIncidentId: Optional[str] = None
     maintenanceEstimatedEnd: Optional[datetime] = None
+    mlRiskLevel: Optional[RiskLevel] = None
+    mlFailureProbability: Optional[float] = None

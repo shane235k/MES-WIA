@@ -17,6 +17,8 @@ interface MachineHealthSummary {
   maintenanceAttention: boolean;
   cycleTimeDeviationPercent: number;
   processingRateEfficiencyPercent: number;
+  mlRiskLevel?: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+  mlFailureProbability?: number;
 }
 
 interface Machine {
@@ -570,6 +572,11 @@ export default function MachinesPage() {
                             <span className="text-[10px] text-zinc-500 block">
                               Risk: <strong className="font-bold">{health.riskLevel}</strong>
                               {health.cycleTimeDeviationPercent > 5 && ` (+${health.cycleTimeDeviationPercent}% cycle time)`}
+                              {health.mlFailureProbability !== undefined && health.mlFailureProbability !== null && (
+                                <span className="ml-1 text-[9px] font-mono font-medium text-zinc-600">
+                                  | ML: <span className={health.mlFailureProbability >= 0.7 ? 'text-rose-600 font-bold' : health.mlFailureProbability >= 0.35 ? 'text-amber-600 font-bold' : 'text-emerald-600 font-bold'}>{Math.round(health.mlFailureProbability * 100)}%</span>
+                                </span>
+                              )}
                             </span>
                           </div>
                         </div>

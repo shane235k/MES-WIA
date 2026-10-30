@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { 
   X, AlertTriangle, ShieldCheck, Activity, Wrench, 
   Sparkles, CheckCircle2, AlertOctagon, 
-  BarChart2, Layers, RefreshCw
+  BarChart2, Layers, RefreshCw, Cpu
 } from 'lucide-react';
 
 interface ProblematicMaterial {
@@ -81,6 +81,18 @@ interface AIAssessment {
   proposedToolCalls?: any[];
 }
 
+interface MLPrediction {
+  modelType: string;
+  predictedRiskLevel: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+  predictedHealthScore: number;
+  failureProbability: number;
+  featureImportances: Record<string, number>;
+  primaryRiskDriver: string;
+  modelConfidence: number;
+  trainedSamplesCount: number;
+  evaluatedAt: string;
+}
+
 interface MachineAssessment {
   machineId: string;
   machineCode: string;
@@ -103,6 +115,7 @@ interface MachineAssessment {
     downtime: string;
   };
   aiAssessment?: AIAssessment | null;
+  mlPrediction?: MLPrediction | null;
   generatedAt: string;
 }
 
@@ -401,6 +414,66 @@ export const AIPredictiveMaintenanceModal: React.FC<AIPredictiveMaintenanceModal
                   </div>
                 </div>
               </div>
+
+              {/* SECTION 1.5: MACHINE LEARNING RANDOM FOREST INFERENCE */}
+              {assessment.mlPrediction && (
+                <div className="bg-gradient-to-r from-zinc-900 to-zinc-800 text-white border border-zinc-700/60 rounded-xl p-4 shadow-sm">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-8 h-8 rounded-lg bg-zinc-800 border border-zinc-700 flex items-center justify-center">
+                        <Cpu className="w-4 h-4 text-emerald-400" />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <h4 className="text-xs font-bold uppercase tracking-wider text-zinc-200">
+                            Random Forest Predictive Engine
+                          </h4>
+                          <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-zinc-800 border border-zinc-700 text-emerald-400 font-semibold">
+                            scikit-learn
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-zinc-400 mt-0.5">
+                          Ensemble model (100 classification trees + 100 regression trees) trained across 9 operational telemetry signals
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <div className="bg-zinc-800/80 border border-zinc-700 px-3 py-1.5 rounded-lg text-right">
+                        <span className="text-[10px] uppercase tracking-wider text-zinc-400 block font-mono">Failure Probability</span>
+                        <span className={`text-sm font-bold font-mono ${
+                          assessment.mlPrediction.failureProbability >= 0.70
+                            ? 'text-rose-400'
+                            : assessment.mlPrediction.failureProbability >= 0.35
+                            ? 'text-amber-400'
+                            : 'text-emerald-400'
+                        }`}>
+                          {Math.round(assessment.mlPrediction.failureProbability * 100)}%
+                        </span>
+                      </div>
+                      <div className="bg-zinc-800/80 border border-zinc-700 px-3 py-1.5 rounded-lg text-right">
+                        <span className="text-[10px] uppercase tracking-wider text-zinc-400 block font-mono">ML Health</span>
+                        <span className="text-sm font-bold font-mono text-white">
+                          {assessment.mlPrediction.predictedHealthScore}/100
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Primary Driver Banner */}
+                  <div className="bg-zinc-950/60 border border-zinc-800 rounded-lg px-3 py-2 text-xs flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <span className="text-zinc-400 text-[11px] font-mono">Dominant Signal:</span>
+                      <span className="text-amber-300 font-medium font-mono">
+                        {assessment.mlPrediction.primaryRiskDriver}
+                      </span>
+                    </div>
+                    <span className="text-[10px] text-zinc-400 font-mono">
+                      Confidence: {Math.round(assessment.mlPrediction.modelConfidence * 100)}%
+                    </span>
+                  </div>
+                </div>
+              )}
 
               {/* SECTION 2: OPERATIONAL & RELIABILITY METRICS GRID */}
               <div>
