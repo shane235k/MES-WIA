@@ -209,9 +209,9 @@ class AIWorkOrderService:
         # Validate draft first
         await AIWorkOrderService.validate_draft(draft_dict)
 
-        prod_id = draft_dict.get("productId")
-        wf_id = draft_dict.get("workflowId")
-        qty = float(draft_dict.get("quantity"))
+        prod_id = str(draft_dict.get("productId") or "")
+        wf_id = str(draft_dict.get("workflowId") or "")
+        qty = float(draft_dict.get("quantity") or 1.0)
 
         # Generate unique code if not given
         wo_code = draft_dict.get("workOrderCode")

@@ -24,8 +24,9 @@ class StructuredFormatter(logging.Formatter):
             log_data["exception"] = self.formatException(record.exc_info)
             
         # Add extra fields if passed via extra={}
-        if hasattr(record, "extra_fields") and isinstance(record.extra_fields, dict): # type: ignore
-            log_data.update(record.extra_fields)
+        extra_f = getattr(record, "extra_fields", None)
+        if extra_f and isinstance(extra_f, dict):
+            log_data.update(extra_f)
             
         return json.dumps(log_data)
 

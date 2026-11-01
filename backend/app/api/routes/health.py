@@ -26,7 +26,7 @@ async def check_health():
     redis_result = results[1]
     
     # Analyze Database Health
-    if isinstance(db_result, Exception):
+    if isinstance(db_result, BaseException):
         logger.warning(f"Healthcheck MongoDB ping failed: {db_result}")
         db_status = ServiceHealthStatus(
             status="unreachable",
@@ -39,7 +39,7 @@ async def check_health():
         )
         
     # Analyze Redis Health
-    if isinstance(redis_result, Exception):
+    if isinstance(redis_result, BaseException):
         logger.warning(f"Healthcheck Redis ping failed: {redis_result}")
         redis_status = ServiceHealthStatus(
             status="unreachable",

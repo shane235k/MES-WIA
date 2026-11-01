@@ -7,7 +7,7 @@ import httpx
 
 from app.core.config import settings
 from app.ai.prompts import INVESTIGATION_SYSTEM_PROMPT, get_action_plan_system_prompt
-from app.ai.schemas import AIInvestigationFinding, AIActionPlan
+from app.ai.schemas import AIInvestigationFinding, AIActionPlan, AIToolAction
 
 logger = logging.getLogger(__name__)
 
@@ -78,7 +78,13 @@ class GeminiClient:
         url = f"https://generativelanguage.googleapis.com/v1beta/models/{current_model}:generateContent?key={current_api_key}"
         
         full_text = f"{system_prompt}\n\n{prompt}" if system_prompt else prompt
-        payload = {
+        gen_config: Dict[str, Any] = {
+            "temperature": temperature
+        }
+        if response_mime_type:
+            gen_config["responseMimeType"] = response_mime_type
+
+        payload: Dict[str, Any] = {
             "contents": [
                 {
                     "parts": [
@@ -86,12 +92,8 @@ class GeminiClient:
                     ]
                 }
             ],
-            "generationConfig": {
-                "temperature": temperature
-            }
+            "generationConfig": gen_config
         }
-        if response_mime_type:
-            payload["generationConfig"]["responseMimeType"] = response_mime_type
 
         logger.info(f"🤖 [AI_GEMINI_REQUEST] Invoking Google Gemini model '{current_model}' for generic completion...")
 
@@ -252,11 +254,11 @@ class GeminiClient:
                 parsed_json = self._extract_json(text_out)
                 plan = AIActionPlan(**parsed_json)
                 
-                tool_names = [a.tool for a in plan.proposedActions]
+                tool_names = [a.tool for a in plan.actions]
                 logger.info(
                     f"✨ [AI_GEMINI_LIVE_RESPONSE] Live Gemini recovery action plan received from model '{current_model}'!\n"
                     f"   ├─ Proposed Safe Tools: {tool_names}\n"
-                    f"   └─ Total Recovery Steps: {len(plan.proposedActions)}"
+                    f"   └─ Total Recovery Steps: {len(plan.actions)}"
                 )
                 return plan
         except Exception as e:
@@ -493,7 +495,7 @@ class GeminiClient:
 
         return AIActionPlan(
             summary=f"Automated recovery plan for {mach_code} breakdown affecting Work Order {wo_code}.",
-            actions=actions
+            actions=[AIToolAction.model_validate(a) for a in actions]
         )
 
 # Global client instance

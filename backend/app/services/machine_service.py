@@ -13,9 +13,9 @@ logger = logging.getLogger(__name__)
 
 class MachineService:
     @staticmethod
-    def _format_machine(doc: Optional[dict]) -> Optional[dict]:
+    def _format_machine(doc: Any) -> dict:
         if not doc:
-            return None
+            return {}
         d = dict(doc)
         if "_id" in d:
             d["id"] = str(d["_id"])
@@ -92,7 +92,7 @@ class MachineService:
         if not ObjectId.is_valid(machine_id):
             return None
         doc = await db.machines.find_one({"_id": ObjectId(machine_id)})
-        return MachineService._format_machine(doc)
+        return MachineService._format_machine(doc) if doc else None
 
     @staticmethod
     async def list_machines() -> List[dict]:

@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Optional
 from app.core.database import get_db
 
 class AuditService:
@@ -10,7 +11,7 @@ class AuditService:
         entity_type: str,
         entity_id: str,
         source: str,
-        metadata: dict = None
+        metadata: Optional[dict] = None
     ) -> None:
         """
         Asynchronously write an audit event into the MongoDB log collection.

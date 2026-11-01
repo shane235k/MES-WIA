@@ -69,6 +69,7 @@ class InventoryLotService:
 
         now = datetime.utcnow()
         lot_data = lot_in.model_dump()
+        lot_data["status"] = lot_in.status.value if hasattr(lot_in.status, 'value') else str(lot_in.status or 'AVAILABLE')
         lot_data["quantityReserved"] = 0.0
         lot_data["receivedDate"] = lot_in.receivedDate or now
         lot_data["createdAt"] = now

@@ -469,7 +469,7 @@ class MaterialReservationService:
                     "operationId": operation_id,
                     "consumedRecords": consumed_records,
                     "scrapQty": scrap_qty,
-                    "scrapReason": scrap_reason.value if hasattr(scrap_reason, "value") else str(scrap_reason) if scrap_reason else None,
+                    "scrapReason": scrap_reason.value if (scrap_reason is not None and hasattr(scrap_reason, "value")) else (str(scrap_reason) if scrap_reason is not None else None),
                     "materialSummary": summary
                 }
             })

@@ -256,6 +256,11 @@ class MachineHealthMLService:
         Executes real-time inference on operational telemetry using trained Random Forest models.
         """
         cls.ensure_models_loaded()
+        if cls._classifier is None or cls._regressor is None:
+            cls.train_models()
+        classifier = cls._classifier
+        regressor = cls._regressor
+        assert classifier is not None and regressor is not None
 
         op_hours = round(max(0.0, total_operating_seconds) / 3600.0, 2)
         days_maint = float(days_since_maint if days_since_maint is not None else 30.0)
@@ -273,17 +278,17 @@ class MachineHealthMLService:
         ]], dtype=np.float32)
 
         # 1. Classification Inference
-        pred_class_idx = int(cls._classifier.predict(feature_vector)[0])
+        pred_class_idx = int(classifier.predict(feature_vector)[0])
         pred_risk_level = RISK_LEVEL_MAP.get(pred_class_idx, RiskLevel.MEDIUM)
 
         # Failure probability (probability of HIGH or CRITICAL risk)
-        probs = cls._classifier.predict_proba(feature_vector)[0]
+        probs = classifier.predict_proba(feature_vector)[0]
         # Sum probability of class 2 (HIGH) and class 3 (CRITICAL)
         high_critical_prob = float(sum(probs[i] for i in range(len(probs)) if i >= 2))
         failure_prob = round(min(1.0, max(0.0, high_critical_prob)), 3)
 
         # 2. Regression Inference (Health Score 0-100)
-        raw_score = float(cls._regressor.predict(feature_vector)[0])
+        raw_score = float(regressor.predict(feature_vector)[0])
         pred_health_score = int(round(np.clip(raw_score, 0.0, 100.0)))
 
         # 3. Explainability: Identify Primary Risk Driver

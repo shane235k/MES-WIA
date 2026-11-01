@@ -1,7 +1,7 @@
 from datetime import datetime
 from enum import Enum
-from typing import Optional
-from pydantic import BaseModel, Field, model_validator
+from typing import Optional, Any
+from pydantic import BaseModel, Field, computed_field
 from app.schemas.base import PyObjectId, BaseSchemaModel
 
 class LotStatus(str, Enum):
@@ -26,6 +26,7 @@ class InventoryLotBase(BaseModel):
     unitCost: Optional[float] = Field(default=None, ge=0.0, description="Acquisition / standard unit cost")
     status: LotStatus = Field(default=LotStatus.AVAILABLE)
 
+    @computed_field
     @property
     def quantityAvailable(self) -> float:
         """
@@ -50,6 +51,15 @@ class InventoryLotCreate(BaseModel):
     unitCost: Optional[float] = Field(default=None, ge=0.0)
     status: LotStatus = Field(default=LotStatus.AVAILABLE)
 
+class InventoryLotUpdate(BaseModel):
+    location: Optional[str] = None
+    status: Optional[LotStatus] = None
+    unitCost: Optional[float] = Field(default=None, ge=0.0, description="Updated or receipt unit cost")
+    supplier: Optional[str] = None
+    notes: Optional[str] = None
+    actorId: str = Field(default="SYSTEM")
+
+
 class InventoryLotReceive(BaseModel):
     quantity: float = Field(..., gt=0.0, description="Additional quantity received into this lot")
     unitCost: Optional[float] = Field(default=None, ge=0.0, description="Updated or receipt unit cost")
@@ -64,19 +74,5 @@ class InventoryLotAdjust(BaseModel):
 
 class InventoryLotInDB(InventoryLotBase, BaseSchemaModel):
     id: Optional[PyObjectId] = Field(None, alias="_id")
-    quantityAvailable: float = Field(default=0.0)
     createdAt: datetime
     updatedAt: datetime
-
-    @model_validator(mode="before")
-    @classmethod
-    def calculate_available(cls, data: Any) -> Any:
-        if isinstance(data, dict):
-            q_on_hand = float(data.get("quantityOnHand", 0.0))
-            q_reserved = float(data.get("quantityReserved", 0.0))
-            status_val = data.get("status", "AVAILABLE")
-            if status_val != "AVAILABLE":
-                data["quantityAvailable"] = 0.0
-            else:
-                data["quantityAvailable"] = max(0.0, round(q_on_hand - q_reserved, 4))
-        return data

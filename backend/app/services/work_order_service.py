@@ -442,7 +442,8 @@ class WorkOrderService:
             "data": state_data
         })
 
-        return await WorkOrderService.get_work_order_by_id(wo_id)
+        res = await WorkOrderService.get_work_order_by_id(wo_id)
+        return res or {}
 
     @staticmethod
     async def resume_operation_node(
@@ -558,4 +559,5 @@ class WorkOrderService:
             "data": state_data
         })
 
-        return await WorkOrderService.get_work_order_by_id(wo_id)
+        res = await WorkOrderService.get_work_order_by_id(wo_id)
+        return res or {}

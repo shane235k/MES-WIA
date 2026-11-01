@@ -67,7 +67,7 @@ async def reject_activation(activation_id: str, reason: Optional[str] = Query("R
     Admin: Reject operator client activation.
     """
     try:
-        return await OperatorActivationService.reject_activation(activation_id, reason=reason)
+        return await OperatorActivationService.reject_activation(activation_id, reason=reason or "Rejected by administrator")
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     except Exception as e:

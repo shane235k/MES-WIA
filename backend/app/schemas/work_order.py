@@ -84,7 +84,7 @@ class WorkOrderBase(BaseModel):
     createdBy: str = Field(default="SYSTEM")
 
 class WorkOrderCreate(WorkOrderBase):
-    dueDate: datetime = Field(..., description="Target completion timestamp")
+    dueDate: Optional[datetime] = Field(default=None, description="Target completion timestamp")
     operations: Optional[List[dict]] = None
 
 class WorkOrderUpdate(BaseModel):

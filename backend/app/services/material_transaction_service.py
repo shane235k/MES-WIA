@@ -49,7 +49,7 @@ class MaterialTransactionService:
             "actorType": actor_type,
             "timestamp": datetime.utcnow(),
             "notes": notes,
-            "scrapReason": scrap_reason.value if hasattr(scrap_reason, "value") else (str(scrap_reason) if scrap_reason else None),
+            "scrapReason": scrap_reason.value if (scrap_reason is not None and hasattr(scrap_reason, "value")) else (str(scrap_reason) if scrap_reason is not None else None),
             "metadata": metadata or {}
         }
 

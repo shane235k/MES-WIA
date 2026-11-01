@@ -437,7 +437,7 @@ class AIWorkOrderPlanner:
         # 5. Match Custom Name (e.g. "call it Friday Production", "name: Batch Alpha")
         name_match = re.search(r'(?:call it|name it|name:|batch name is|batch:)\s*["\']?([^"\']+)["\']?', text, re.IGNORECASE)
         if name_match:
-            custom_name = name_match.group(1).strip()
+            custom_name = name_match.group(1).strip().rstrip('.')
             if custom_name and custom_name.lower() not in ["yes", "no", "sure"]:
                 collected_fields["name"] = custom_name
 

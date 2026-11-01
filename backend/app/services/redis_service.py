@@ -37,7 +37,10 @@ class RedisService:
         """
         try:
             client = get_redis()
-            return await client.get(key)
+            val = await client.get(key)
+            if isinstance(val, bytes):
+                return val.decode('utf-8')
+            return val
         except Exception as e:
             logger.error(f"Redis get_key failed for {key}: {e}")
             return None
@@ -109,7 +112,10 @@ class RedisService:
             client = get_redis()
             raw_payload = await client.lpop(queue_name)
             if raw_payload:
-                return json.loads(raw_payload)
+                if isinstance(raw_payload, bytes):
+                    raw_payload = raw_payload.decode('utf-8')
+                if isinstance(raw_payload, str):
+                    return json.loads(raw_payload)
             return None
         except Exception as e:
             logger.error(f"Redis dequeue_job failed for queue {queue_name}: {e}")

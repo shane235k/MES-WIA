@@ -13,9 +13,9 @@ from app.core.websocket import ws_manager
 
 class IncidentService:
     @staticmethod
-    def _format_incident(doc: Optional[dict]) -> Optional[dict]:
+    def _format_incident(doc: Any) -> dict:
         if not doc:
-            return None
+            return {}
         d = dict(doc)
         if "_id" in d:
             d["id"] = str(d["_id"])
@@ -90,7 +90,7 @@ class IncidentService:
 
         # 3. Generate sequential incident code
         count = await db.incidents.count_documents({})
-        inc_code = f"INC-{str(count + 1).padStart(4, '0')}" if hasattr(str, 'padStart') else f"INC-{str(count + 1).zfill(4)}"
+        inc_code = f"INC-{str(count + 1).zfill(4)}"
 
         now = datetime.utcnow()
         title = f"Operator Report on {derived_machine_code or 'Equipment'}: {message[:40]}"

@@ -19,9 +19,9 @@ class OperatorActivationService:
     """
 
     @staticmethod
-    def _format_activation(doc: dict, mask_code: bool = False) -> dict:
+    def _format_activation(doc: Any, mask_code: bool = False) -> dict:
         if not doc:
-            return None
+            return {}
         res = dict(doc)
         res["id"] = str(res["_id"])
         res["_id"] = str(res["_id"])

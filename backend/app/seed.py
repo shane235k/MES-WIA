@@ -104,7 +104,7 @@ async def run_seed(reset_demo: bool = False):
     # If the database had no users at all (e.g. brand new install), seed standard initial accounts
     if len(pre_users_snapshot) == 0:
         logger.info("No users found in fresh database. Seeding initial baseline accounts...")
-        init_users = [
+        init_users: List[Dict[str, Any]] = [
             {"employeeId": "OP-001", "name": "Alex Rivera", "email": "alex.rivera@mes.com", "role": UserRole.OPERATOR.value, "department": "Fabrication", "status": UserStatus.ACTIVE.value, "availabilityStatus": OperatorAvailability.AVAILABLE.value},
             {"employeeId": "OP-002", "name": "Beatriz Vance", "email": "beatriz.vance@mes.com", "role": UserRole.OPERATOR.value, "department": "Assembly", "status": UserStatus.ACTIVE.value, "availabilityStatus": OperatorAvailability.AVAILABLE.value},
             {"employeeId": "OP-003", "name": "Carlos Chen", "email": "carlos.chen@mes.com", "role": UserRole.OPERATOR.value, "department": "Finishing", "status": UserStatus.ACTIVE.value, "availabilityStatus": OperatorAvailability.AVAILABLE.value},
@@ -133,7 +133,7 @@ async def run_seed(reset_demo: bool = False):
     # 4. SEED CAPABILITIES
     # -------------------------------------------------------------
     logger.info("Seeding manufacturing capabilities...")
-    capabilities_data = [
+    capabilities_data: List[Dict[str, Any]] = [
         {"code": "CUTTING", "name": "Laser & Plasma Cutting", "description": "High-precision CNC cutting of raw sheet metal into component profiles."},
         {"code": "BENDING", "name": "CNC Press Brake Forming", "description": "Precision multi-angle forming and bending of sheet metal parts."},
         {"code": "WELDING", "name": "Robotic TIG & MIG Welding", "description": "High-integrity structural and seam welding of metal subassemblies."},
@@ -1588,6 +1588,8 @@ async def run_seed(reset_demo: bool = False):
         12.5, 13.0, 13.6, 14.2, 14.8, 15.3, 15.9, 16.5, 17.0, 17.5,
         18.0, 18.2, 18.4, 18.5, 18.6, 18.8
     ]
+    hist_wo_id: str = ""
+    hist_wo_code: str = ""
     for i, dur in enumerate(m03_durations):
         t_start = now - timedelta(days=7 - (i * 0.25), hours=1)
         t_end = t_start + timedelta(seconds=dur)

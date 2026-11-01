@@ -21,9 +21,9 @@ logger = logging.getLogger(__name__)
 
 class AIOrchestrator:
     @staticmethod
-    def _format_op(doc: Optional[dict]) -> Optional[dict]:
+    def _format_op(doc: Any) -> dict:
         if not doc:
-            return None
+            return {}
         d = dict(doc)
         if "_id" in d:
             d["id"] = str(d["_id"])

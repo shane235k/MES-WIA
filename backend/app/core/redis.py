@@ -14,14 +14,15 @@ class RedisManager:
         """
         Establish connection to Redis using the settings environment URL.
         """
-        logger.info(f"Connecting to Redis at {settings.REDIS_HOST}:{settings.REDIS_PORT}")
+        target = settings.REDIS_URL.split("@")[-1] if settings.REDIS_URL else f"{settings.REDIS_HOST}:{settings.REDIS_PORT}"
+        logger.info(f"Connecting to Redis at {target}")
         try:
             self.client = aioredis.from_url(
                 settings.redis_url,
                 encoding="utf-8",
                 decode_responses=True,
-                socket_timeout=2.0,  # 2 seconds connection timeout
-                socket_connect_timeout=2.0
+                socket_timeout=5.0,  # 5 seconds connection timeout for cloud networks
+                socket_connect_timeout=5.0
             )
             # Verify connectivity
             await self.client.ping()

@@ -12,6 +12,7 @@ from app.schemas.machine import MachineStatus
 from app.schemas.user import OperatorAvailability, UserRole
 from app.services.redis_service import RedisService
 from app.services.audit_service import AuditService
+from app.services.machine_service import MachineService
 
 logger = logging.getLogger(__name__)
 
@@ -514,6 +515,7 @@ class ExecutionEngine:
                     )
 
                     if machine_ready and operator_ready:
+                        assert machine is not None and operator is not None
                         # Resources available -> Start operation!
                         op["status"] = WorkOrderOperationStatus.IN_PROGRESS.value
                         op["waitingReason"] = None
