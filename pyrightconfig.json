@@ -1,5 +1,8 @@
 {
   "extraPaths": [
-    "./backend"
-  ]
+    "./backend",
+    "backend",
+    "c:/nvm/COLLEGE/Manufacturing-execution-system/MES-WIA/backend"
+  ],
+  "reportMissingImports": false
 }
